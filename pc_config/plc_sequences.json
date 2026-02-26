@@ -1,0 +1,167 @@
+{
+  "version": "1.0",
+  "created_time": "2025-08-21T17:18:37.808675",
+  "sequences": {
+    "industrial_process": {
+      "name": "industrial_process",
+      "description": "完整的工业控制流程",
+      "steps": [
+        {
+          "name": "GPIO输出控制",
+          "description": "控制继电器开关",
+          "params": {
+            "pin": "s0",
+            "state": false,
+            "description": "关闭主电源"
+          },
+          "type": "gpio_output"
+        },
+        {
+          "name": "延时等待",
+          "description": "等待指定时间",
+          "params": {
+            "duration": 15000,
+            "description": "延时15秒"
+          },
+          "type": "delay"
+        },
+        {
+          "name": "ModbusRTU通信",
+          "description": "发送Modbus指令",
+          "params": {
+            "command": "stop_cycle_blow",
+            "description": "停止系统"
+          },
+          "type": "modbus_rtu"
+        },
+        {
+          "name": "GPIO输出控制",
+          "description": "控制继电器开关",
+          "params": {
+            "pin": "s0",
+            "state": false,
+            "description": "关闭主电源"
+          },
+          "type": "gpio_output"
+        },
+        {
+          "name": "延时等待",
+          "description": "等待指定时间",
+          "params": {
+            "duration": 15000,
+            "description": "延时15秒"
+          },
+          "type": "delay"
+        },
+        {
+          "name": "GPIO输出控制",
+          "description": "控制继电器开关",
+          "params": {
+            "pin": "s0",
+            "state": false,
+            "description": "关闭主电源"
+          },
+          "type": "gpio_output"
+        },
+        {
+          "name": "GPIO输出控制",
+          "description": "控制继电器开关",
+          "params": {
+            "pin": "s0",
+            "state": false,
+            "description": "关闭主电源"
+          },
+          "type": "gpio_output"
+        },
+        {
+          "name": "延时等待",
+          "description": "等待指定时间",
+          "params": {
+            "duration": 15000,
+            "description": "延时15秒"
+          },
+          "type": "delay"
+        },
+        {
+          "name": "GPIO输出控制",
+          "description": "控制继电器开关",
+          "params": {
+            "pin": "s0",
+            "state": false,
+            "description": "关闭主电源"
+          },
+          "type": "gpio_output"
+        },
+        {
+          "name": "GPIO输出控制",
+          "description": "控制继电器开关",
+          "params": {
+            "pin": "s0",
+            "state": false,
+            "description": "关闭主电源"
+          },
+          "type": "gpio_output"
+        },
+        {
+          "name": "延时等待",
+          "description": "等待指定时间",
+          "params": {
+            "duration": 15000,
+            "description": "延时15秒"
+          },
+          "type": "delay"
+        },
+        {
+          "name": "GPIO输出控制",
+          "description": "控制继电器开关",
+          "params": {
+            "pin": "s0",
+            "state": false,
+            "description": "关闭主电源"
+          },
+          "type": "gpio_output"
+        },
+        {
+          "name": "ModbusRTU通信",
+          "description": "发送Modbus指令",
+          "params": {
+            "command": "stop_cycle_blow",
+            "description": "停止系统"
+          },
+          "type": "modbus_rtu"
+        },
+        {
+          "name": "GPIO输出控制",
+          "description": "控制继电器开关",
+          "params": {
+            "pin": "s0",
+            "state": false,
+            "description": "关闭主电源"
+          },
+          "type": "gpio_output"
+        },
+        {
+          "type": "gpio_output",
+          "params": {
+            "description": "",
+            "pin": "s0",
+            "state": true
+          }
+        },
+        {
+          "type": "delay",
+          "params": {
+            "description": "",
+            "duration": 1000
+          }
+        }
+      ],
+      "created_time": "2025-08-21T17:18:37.808675"
+    }
+  },
+  "global_settings": {
+    "auto_start": true,
+    "default_sequence": "",
+    "watchdog_timeout": 30000
+  }
+}
