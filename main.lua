@@ -184,7 +184,7 @@ gpio.setup(28,1, gpio.PULLUP) --PT3
 -- uart.setup(1,9600,8,1,0,uart.LSB,1024,nil,0)
 -- uart.setup(4, 9600, 8, 1, 0, uart.LSB, 1024, 43, 0, 100)
 uart.setup(2, 9600, 8, 1, 0, uart.LSB, 1024, 14, 0, 100)
-uart.setup(4, 9600, 8, 1, 0, uart.LSB, 1024, 14, 0, 100)
+uart.setup(4, 9600, 8, 1, 0, uart.LSB, 1024, 43, 0, 100)
 uart.setup(1, 9600, 8, 1, uart.NONE, uart.LSB, 1024, nil, 0, 2000)
 -- uart.setup(3, 9600, 8, 1, uart.NONE, uart.LSB, 1024, 14, 0, 2000)
 -- uart.setup(4, 9600, 8, 1, uart.NONE, uart.LSB, 1024, 43, 0, 2000)
