@@ -24,12 +24,16 @@ end
 -- 初始化响应表
 if _G.rsptb == nil then
     _G.rsptb = {}
-    rsptb[0x01] = {0xFF, 0XFF}
-    rsptb[0x02] = {0x55, 0X55}
+    -- 01/02 功能码：位图镜像，初始化 8 字节（1..8），默认 0
+    rsptb[0x01] = {}
+    rsptb[0x02] = {}
+    for i = 0, 7 do rsptb[0x01][i] = 0x00 end
+    for i = 0, 7 do rsptb[0x02][i] = 0x00 end
+    -- 03/04 功能码：寄存器镜像，初始化 200 字节（索引 0..199），默认 0
     rsptb[0x03] = {}
-    for i = 0, 2000 do rsptb[0x03][i] = 0X00 end
+    for i = 0, 199 do rsptb[0x03][i] = 0x00 end
     rsptb[0x04] = {}
-    for i = 0, 2000 do rsptb[0x04][i] = 0X00 end
+    for i = 0, 199 do rsptb[0x04][i] = 0x00 end
 end
 
 fskv.init()
@@ -209,37 +213,69 @@ u4.init1()
 -- gpio.setup(6,1, gpio.PULLUP)
 -- gpio.setup(7,1, gpio.PULLUP)
 
--- 设置gpio27为中断, 仅上升沿触发
-gpio.setup(2, function(val)
-    print("输入1按下",val) -- 提醒, val并不代表触发方向, 仅代表中断后某个时间点的电平
-end, gpio.PULLUP, gpio.RISING)
-gpio.debounce(2, 100) 
--- 设置gpio27为中断, 仅上升沿触发
-gpio.setup(3, function(val)
-    print("输入2按下",val) -- 提醒, val并不代表触发方向, 仅代表中断后某个时间点的电平
-end, gpio.PULLUP, gpio.RISING)
-gpio.debounce(3, 100) 
--- 设置gpio27为中断, 仅上升沿触发
-gpio.setup(6, function(val)
-    print("输入3按下",val) -- 提醒, val并不代表触发方向, 仅代表中断后某个时间点的电平
-end, gpio.PULLUP, gpio.RISING)
-gpio.debounce(6, 100) 
--- 设置gpio27为中断, 仅上升沿触发
-gpio.setup(7, function(val)
-    print("输入4按下",val) -- 提醒, val并不代表触发方向, 仅代表中断后某个时间点的电平
-end, gpio.PULLUP, gpio.RISING)
-gpio.debounce(7, 100) 
+--5路开关输出默认关闭
+gpio.setup(8,0) --开关4 --采样泵
+gpio.setup(9,0) --开关5 --标定阀
+gpio.setup(10,0) --开关6 --原位标定阀
+gpio.setup(11,0) --开关7 --预留PWM11
+gpio.setup(5,0) --继电器 --报警输出
 
---7路加热输出
--- gpio.setup(40,1) --加热1 PWM2
--- gpio.setup(41,1) --加热2 PWM3
--- gpio.setup(42,1) --加热3 PWM4
-gpio.setup(8,1) --加热4
-gpio.setup(9,1) --加热5
--- gpio.setup(10,1) --加热6 PWM0
--- gpio.setup(11,1) --加热7 PWM1
+-- 按键配置函数
+local function recompute_buttons()
+    local s = (gpio.get(2) == 0)
+    local c = (gpio.get(3) == 0)
+    local m = (gpio.get(6) == 0)
+    local b = (gpio.get(7) == 0)
+    local pump, cal, insitu = 0, 0, 0
+    if c and b then
+        pump, insitu, cal = 1, 1, 0
+    elseif c and (not b) then
+        pump, insitu, cal = 0, 0, 1
+    elseif s then
+        pump, insitu, cal = 1, 0, 0
+    else
+        pump, insitu, cal = 0, 0, 0
+    end
+    gpio.set(8, pump)
+    gpio.set(9, cal)
+    gpio.set(10, insitu)
+    if not rsptb[0x01] then rsptb[0x01] = {} end
+    if not rsptb[0x02] then rsptb[0x02] = {} end
+    local in_byte = (s and 1 or 0) | ((c and 1 or 0) << 1) | ((m and 1 or 0) << 2) | ((b and 1 or 0) << 3)
+    local alarm_on = (gpio.get(5) == 1) and 1 or 0
+    local out_byte = (pump & 1) | ((cal & 1) << 1) | ((insitu & 1) << 2) | (alarm_on << 3)
+    rsptb[0x02][0] = in_byte
+    rsptb[0x01][0] = out_byte
+    pcall(store_to_rsptb, m and 1 or 0, "ushort", 25)
+    log.info("按键联动", string.format(
+        "时刻=%s 启动=%d 标定=%d 维护=%d 反吹=%d -> 泵=%d 标定阀=%d 原位阀=%d 维护标志=%d",
+        os.date("%H:%M:%S"), s and 1 or 0, c and 1 or 0, m and 1 or 0, b and 1 or 0,
+        pump, cal, insitu, m and 1 or 0
+    ))
+end
+local _btn_recompute_pending = false
+local function schedule_recompute()
+    if _btn_recompute_pending then return end
+    _btn_recompute_pending = true
+    sys.taskInit(function()
+        sys.wait(50)
+        _btn_recompute_pending = false
+        recompute_buttons()
+    end)
+end
+gpio.setup(2, function(val) schedule_recompute() end, gpio.PULLUP, gpio.BOTH)
+gpio.debounce(2, 200)
+gpio.setup(3, function(val) schedule_recompute() end, gpio.PULLUP, gpio.BOTH)
+gpio.debounce(3, 200)
+gpio.setup(6, function(val) schedule_recompute() end, gpio.PULLUP, gpio.BOTH)
+gpio.debounce(6, 200)
+gpio.setup(7, function(val) schedule_recompute() end, gpio.PULLUP, gpio.BOTH)
+gpio.debounce(7, 200)
+recompute_buttons()
 
-local pwm_freq = 10
+
+-- 加热输出PWM频率接口初始化
+local pwm_freq = 5
 pwm.open(32, pwm_freq, 0)
 pwm.open(33, pwm_freq, 0)
 pwm.open(34, pwm_freq, 0)
@@ -253,6 +289,8 @@ local PT = require("pt100_control")
 -- 启动三路温度轮询模块（每100ms更新 pt1/pt2/pt3）
 temp_manager.start({ id = 1, cpol = 1, cpha = 1, databits = 8, clock = 1 * 1000 * 1000 }, { _G.p1, _G.p2, _G.p3 }, 10)
 -- ble.start()
+
+-- 输入改为中断模式，已取消轮询
 
 -- 示例：主程序使用全局变量做温控（占位）
 sys.taskInit(function()

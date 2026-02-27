@@ -79,7 +79,7 @@ function u2.init1()
         if cacheData:len() > 0 then
             local a = string.toHex(cacheData)
             -- aa=cacheData:sub(1,-3)
-            -- log.info("modbus接收数据:", cacheData:toHex())
+            -- log.info("modbus接收数据2:", cacheData:toHex())
             local nextpos, dev, func = pack.unpack(cacheData, "bb", 1)
             -- log.info("nextpos ,dev, func ", nextpos, string.format("%02X,%02X", dev, func))
             -- 01 06 0001 0002 59CB
@@ -109,7 +109,47 @@ function u2.init1()
                             local _, bytlen = pack.unpack(cacheData, ">H", 5)   -- 个数
                             _G.start = bytstart
                             _G.datalen = bytlen
-                            if func == 0x03 or func == 0x04 then
+                            if func == 0x01 then
+                                if THISDEV == dev or dev == 0xFA then
+                                    local nbytes = math.ceil(bytlen / 8)
+                                    local out_bytes = {}
+                                    for b = 0, nbytes - 1 do
+                                        local val = 0
+                                        for bitp = 0, 7 do
+                                            local k = bytstart + b * 8 + bitp
+                                            local byteIndex = math.floor(k / 8)
+                                            local bitPos = k % 8
+                                            local byteVal = (rsptb[func] and rsptb[func][byteIndex]) or 0
+                                            if bit.band(bit.rshift(byteVal, bitPos), 1) == 1 then
+                                                val = bit.bor(val, bit.lshift(1, bitp))
+                                            end
+                                        end
+                                        out_bytes[#out_bytes + 1] = string.format("%02x", val)
+                                    end
+                                    local payload = table.concat(out_bytes, "")
+                                    modbus_resp(THISDEV, func, string.format("%02x%s", nbytes, payload))
+                                end
+                            elseif func == 0x02 then
+                                if THISDEV == dev or dev == 0xFA then
+                                    local nbytes = math.ceil(bytlen / 8)
+                                    local out_bytes = {}
+                                    for b = 0, nbytes - 1 do
+                                        local val = 0
+                                        for bitp = 0, 7 do
+                                            local k = bytstart + b * 8 + bitp
+                                            local byteIndex = math.floor(k / 8)
+                                            local bitPos = k % 8
+                                            local byteVal = (rsptb[func] and rsptb[func][byteIndex]) or 0
+                                            if bit.band(bit.rshift(byteVal, bitPos), 1) == 1 then
+                                                val = bit.bor(val, bit.lshift(1, bitp))
+                                            end
+                                        end
+                                        out_bytes[#out_bytes + 1] = string.format("%02x", val)
+                                    end
+                                    local payload = table.concat(out_bytes, "")
+                                    modbus_resp(THISDEV, func, string.format("%02x%s", nbytes, payload))
+                                end
+                            elseif func == 0x03 or func == 0x04 then
                                 -- _G.t1,_G.h1 = read_sht40(0)
                                 -- log.info(t1,h1)
                                 -- if i2c.exist(0) then

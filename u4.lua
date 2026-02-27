@@ -9,11 +9,11 @@ function u4.init1()
         -- 如果是air302, len不可信, 传1024
         -- s = uart.read(id, 1024)
         s = uart.read(id, len)
-        log.info("uart", "receive", id, #s, s:toHex())
+        log.info("uart4", "receive", id, #s, s:toHex())
         if #s > 0 then -- #s 是取字符串的长度
             -- 如果传输二进制/十六进制数据, 部分字符不可见, 不代表没收到
             -- 关于收发hex值,请查阅 https://doc.openluat.com/article/583
-            -- log.info("uart", "receive", id, #s, string.toHex(s))
+            log.info("uart4", "receive", id, #s, string.toHex(s))
 
             local idx, crc = pack.unpack(s:sub(-2, -1), "H")
             local tmp = s:sub(1, -3)
@@ -164,7 +164,7 @@ function u4.init1()
     while 1 do
         modbus_send3(uart_id, 0xFF, 0x03, 0x09, 0x05)
         -- modbus_send3(2, 0xFA, 0x03, 0x09, 0x05)
-        -- log.info("发送串口3")
+        -- log.info("发送串口4")
         -- _G.tstart = tstart + 1
         sys.wait(1000)
     end
