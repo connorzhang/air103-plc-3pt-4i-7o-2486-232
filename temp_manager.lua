@@ -24,7 +24,7 @@ local function update_avg(idx, t)
     end
     local sum = 0
     for _, v in ipairs(st.buf) do sum = sum + v end
-    return math.floor((sum / #st.buf) + 0.5)
+    return math.floor((sum / #st.buf))
 end
 
 -- 初始化并启动采集
