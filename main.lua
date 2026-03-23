@@ -1,6 +1,6 @@
 -- LuaTools需要PROJECT和VERSION这两个信息
 PROJECT = "PLC-7k-2485-232-4i"
-VERSION = "1.0.1"
+VERSION = "1.0.2"
 
 log.info("main", PROJECT, VERSION)
 
