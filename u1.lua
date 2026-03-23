@@ -107,8 +107,6 @@ function u1.init1()
                             -- 校验正确后，根据不同的功能码做回复(DEMO 忽略起始地址)
                             local _, bytstart = pack.unpack(cacheData, ">H", 3) -- 启始地址
                             local _, bytlen = pack.unpack(cacheData, ">H", 5)   -- 个数
-                            _G.start = bytstart
-                            _G.datalen = bytlen
                             
                             if func == 0x01 then
                                 if THISDEV == dev or dev == 0xFA then
@@ -159,8 +157,8 @@ function u1.init1()
                                 -- log.info("不存在 i2c0")
                                 -- end
                                 if THISDEV == dev or dev == 0xFA then
-                                    bytlens = bytlen * 2
-                                    bytstarts = bytstart * 2
+                                    local bytlens = bytlen * 2
+                                    local bytstarts = bytstart * 2
                                     if (bytlens + bytstart) <= #rsptb[func] then
                                         local strhex = ""
                                         for i = bytstarts, bytlens + bytstarts - 1 do
@@ -186,30 +184,27 @@ function u1.init1()
                                 else
 
                                 end
-                            elseif func == 0x05 or func == 0x06 then
-                                log.info(bytstart, bytlen)
-                                local strhex =
-                                    string.format("%04X%04X", bytstart, bytlen)
-                                rsptb[0x03][bytstart * 2 + 1] = bytlen
-                                fskv.set("config", {
-                                    model       = rsptb[0x03][201],
-                                    points      = rsptb[0x03][203],
-                                    mode        = rsptb[0x03][209],
-                                    protocol    = rsptb[0x03][211],
-                                    uptime      = rsptb[0x03][213],
-                                    correct     = rsptb[0x03][219],
-                                    relay1on    = rsptb[0x03][221],
-                                    relay1delay = rsptb[0x03][223],
-                                    relay1range = rsptb[0x03][225],
-                                    relay2on    = rsptb[0x03][227],
-                                    relay2delay = rsptb[0x03][229],
-                                    relay2range = rsptb[0x03][231],
-                                })
-            
-            
-                                relay1on = fskv.get("config", "relay1on")
-                                log.info(relay1on)
+                            elseif func == 0x05 then
+                                -- Write Single Coil
+                                local coil_addr = bytstart
+                                local coil_val = bytlen
+                                local byteIndex = math.floor(coil_addr / 8)
+                                local bitPos = coil_addr % 8
+                                if not rsptb[0x01] then rsptb[0x01] = {} end
+                                local currentByte = rsptb[0x01][byteIndex] or 0
+                                if coil_val == 0xFF00 then
+                                    rsptb[0x01][byteIndex] = bit.bor(currentByte, bit.lshift(1, bitPos))
+                                elseif coil_val == 0x0000 then
+                                    rsptb[0x01][byteIndex] = bit.band(currentByte, bit.bnot(bit.lshift(1, bitPos)))
+                                end
+                                local strhex = string.format("%04X%04X", bytstart, bytlen)
                                 modbus_resp(THISDEV, func, strhex)
+
+                            elseif func == 0x06 then
+                                local strhex = string.format("%04X%04X", bytstart, bytlen)
+                                _G.handle_modbus_write(bytstart, bytlen, false)
+                                modbus_resp(THISDEV, func, strhex)
+
                             else
                                 log.info("unkonw func", func)
                                 modbus_resp(THISDEV, func + 0x80,
@@ -225,103 +220,34 @@ function u1.init1()
                     local dlen = cacheData:byte(nextpos + 4)
                     if #cacheData >= 7 + dlen + 2 then
                         local strcrc = pack.pack('<h', crypto.crc16("MODBUS",
-                            cacheData:sub(
-                                1, 7 +
-                                dlen)))
+                            cacheData:sub(1, 7 + dlen)))
                         if strcrc == cacheData:sub(7 + dlen + 1, 7 + dlen + 2) then
-                            local _, reg, val =
-                                pack.unpack(cacheData, ">H>H", nextpos)
+                            local _, reg, val = pack.unpack(cacheData, ">H>H", nextpos)
                             local tmpdat = cacheData:sub(8, dlen + 8 - 1)
-                            -- 假设写入都是成功的，实际上写入也要判断值域：回复为起始地址和线圈个数
-                            log.info("b-func crc is correct!", func, dlen,
-                                "will save:", tmpdat:toHex())
+                            log.info("b-func crc is correct!", func, dlen, "will save:", tmpdat:toHex())
                             local strhex = string.format("%04X%04X", reg, val)
                             modbus_resp(dev, func, strhex)
                         else
                             log.info("b-func,#cacheData  crc, calcrc", func,
-                                #cacheData, cacheData:sub(7 + dlen + 1,
-                                    7 + dlen + 2)
-                                :toHex(), strcrc:toHex())
+                                #cacheData, cacheData:sub(7 + dlen + 1, 7 + dlen + 2):toHex(), strcrc:toHex())
                         end
                     end
                 elseif func == 0x10 then
                     local dlen = cacheData:byte(nextpos + 4)
-                    -- log.info("#cacheData,func,dlen=", #cacheData, func, dlen)
-                    -- 01 10 0000 000A 14 0000000000000000000000000000000000000000 70FE
                     if #cacheData >= 7 then
-                        local strcrc = pack.pack('<h', crypto.crc16("MODBUS",
-                            cacheData:sub(
-                                1, -3)))
-                        -- log.info(strcrc:toHex())
-                        -- log.info((cacheData:sub(-2, -1)):toHex())
+                        local strcrc = pack.pack('<h', crypto.crc16("MODBUS", cacheData:sub(1, -3)))
                         if strcrc == cacheData:sub(-2, -1) then
-                            local _, reg, val = pack.unpack(cacheData, ">H>H")
-                            -- log.info(start,datalen)
+                            local _, reg, val = pack.unpack(cacheData, ">H>H", nextpos)
                             local tmpdat = cacheData:sub(8, -3)
-                            -- 假设写入都是成功的，实际上写入也要判断值域：回复为起始地址和字节个数
-                            -- log.info("c-func crc is correct!", func, dlen, "will save:", tmpdat:toHex(),
-                            --     #tmpdat / 2, "words")
-                            log.info(tmpdat:toHex())
-                            local _, _, _, _, b1, _, d1, _, s1, _, c1, _, ba1,
-                            _, b2, _, d2, _, s2, _, c2, _, ba2, _, b3, _,
-                            d3, _, s3, _, c3, _, ba3 = pack.unpack(tmpdat,
-                                ">b32")
-                            local bytes = tonumber(tmpdat, 16)
-                            local var = ""
-                            -- for i = 1, #tmpdat, 2 do
-                            --     local shift = (#tmpdat + i)  -- 计算位移量
-                            --     log.info(math.floor(i + start * 2 + 1))
-                            --     log.info((tmpdat:sub(i+1,i+1)):toHex())
-
-                            --     rsptb[0x03][200+i] = _G[""]
-                            --     -- local byte = bit32.band(bit32.rshift(bytes, shift), 0xff) -- 获取字节值
-                            --     -- log.info(byte:toHex())
-                            --     -- var = var .. string.char(byte)  -- 拼接成字符串
-                            -- end
-
-                            rsptb[0x03][201] = b1
-                            rsptb[0x03][211] = b2
-                            rsptb[0x03][221] = b3
-
-                            rsptb[0x03][203] = d1
-                            rsptb[0x03][213] = d2
-                            rsptb[0x03][223] = d3
-
-                            rsptb[0x03][205] = s1
-                            rsptb[0x03][215] = s2
-                            rsptb[0x03][225] = s3
-
-                            rsptb[0x03][207] = c1
-                            rsptb[0x03][217] = c2
-                            rsptb[0x03][227] = c3
-
-                            fskv.set("u1", {
-                                band = b1,
-                                databit = d1,
-                                stop = s1,
-                                crc = c1
-                            })
-                            fskv.set("u2", {
-                                band = b2,
-                                databit = d2,
-                                stop = s2,
-                                crc = c2
-                            })
-                            fskv.set("u3", {
-                                band = b3,
-                                databit = d3,
-                                stop = s3,
-                                crc = c3
-                            })
-                            local strhex =
-                                string.format("%04X%04X", start, datalen)
-                            -- log.info(strhex:toHex())
+                            
+                            -- Call our unified write handler
+                            _G.handle_modbus_write(reg, tmpdat, true)
+                            
+                            local strhex = string.format("%04X%04X", reg, val)
                             modbus_resp(dev, func, strhex)
                         else
                             log.info("c-func,#cacheData  crc, calcrc", func,
-                                #cacheData, cacheData:sub(7 + dlen + 1,
-                                    7 + dlen + 2)
-                                :toHex(), strcrc:toHex())
+                                #cacheData, cacheData:sub(7 + dlen + 1, 7 + dlen + 2):toHex(), strcrc:toHex())
                         end
                     end
                 end

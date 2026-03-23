@@ -1,6 +1,6 @@
 -- LuaTools需要PROJECT和VERSION这两个信息
 PROJECT = "PLC-7k-2485-232-4i"
-VERSION = "1.0.0"
+VERSION = "1.0.1"
 
 log.info("main", PROJECT, VERSION)
 
@@ -185,13 +185,72 @@ gpio.setup(30,1, gpio.PULLUP) --PT1
 gpio.setup(29,1, gpio.PULLUP) --PT2
 gpio.setup(28,1, gpio.PULLUP) --PT3
 
--- uart.setup(1,9600,8,1,0,uart.LSB,1024,nil,0)
--- uart.setup(4, 9600, 8, 1, 0, uart.LSB, 1024, 43, 0, 100)
-uart.setup(2, 9600, 8, 1, 0, uart.LSB, 1024, 14, 0, 100)
-uart.setup(4, 9600, 8, 1, 0, uart.LSB, 1024, 43, 0, 100)
-uart.setup(1, 9600, 8, 1, uart.NONE, uart.LSB, 1024, nil, 0, 2000)
--- uart.setup(3, 9600, 8, 1, uart.NONE, uart.LSB, 1024, 14, 0, 2000)
--- uart.setup(4, 9600, 8, 1, uart.NONE, uart.LSB, 1024, 43, 0, 2000)
+-- 串口动态配置与应用
+local function get_baud(code)
+    local bauds = {[0]=2400, [1]=4800, [2]=9600, [3]=19200, [4]=38400, [5]=57600, [6]=115200}
+    return bauds[code] or 9600
+end
+
+function _G.apply_uart_config()
+    local def = {baud_code=2, parity=0, stop=1} -- 9600, NONE, 1
+    local u1_cfg = fskv.get("cfg_u1") or def
+    local u2_cfg = fskv.get("cfg_u2") or def
+    local u4_cfg = fskv.get("cfg_u4") or def
+    
+    -- Parity map: 0=NONE, 1=ODD, 2=EVEN
+    -- Stop bit map: 1=1, 2=2
+    uart.setup(1, get_baud(u1_cfg.baud_code), 8, u1_cfg.stop, u1_cfg.parity, uart.LSB, 1024, nil, 0, 2000)
+    uart.setup(2, get_baud(u2_cfg.baud_code), 8, u2_cfg.stop, u2_cfg.parity, uart.LSB, 1024, 14, 0, 100)
+    uart.setup(4, get_baud(u4_cfg.baud_code), 8, u4_cfg.stop, u4_cfg.parity, uart.LSB, 1024, 43, 0, 100)
+    
+    -- 初始化响应表中的串口配置寄存器 (Reg 100..108)
+    -- Reg 100 对应 0x03/0x04 中的 start_byte = 100 * 2 = 200
+    rsptb[0x03][200] = bit.rshift(u1_cfg.baud_code, 8); rsptb[0x03][201] = bit.band(u1_cfg.baud_code, 0xFF)
+    rsptb[0x03][202] = bit.rshift(u1_cfg.parity, 8); rsptb[0x03][203] = bit.band(u1_cfg.parity, 0xFF)
+    rsptb[0x03][204] = bit.rshift(u1_cfg.stop, 8); rsptb[0x03][205] = bit.band(u1_cfg.stop, 0xFF)
+    
+    rsptb[0x03][206] = bit.rshift(u2_cfg.baud_code, 8); rsptb[0x03][207] = bit.band(u2_cfg.baud_code, 0xFF)
+    rsptb[0x03][208] = bit.rshift(u2_cfg.parity, 8); rsptb[0x03][209] = bit.band(u2_cfg.parity, 0xFF)
+    rsptb[0x03][210] = bit.rshift(u2_cfg.stop, 8); rsptb[0x03][211] = bit.band(u2_cfg.stop, 0xFF)
+    
+    rsptb[0x03][212] = bit.rshift(u4_cfg.baud_code, 8); rsptb[0x03][213] = bit.band(u4_cfg.baud_code, 0xFF)
+    rsptb[0x03][214] = bit.rshift(u4_cfg.parity, 8); rsptb[0x03][215] = bit.band(u4_cfg.parity, 0xFF)
+    rsptb[0x03][216] = bit.rshift(u4_cfg.stop, 8); rsptb[0x03][217] = bit.band(u4_cfg.stop, 0xFF)
+    
+    for i = 200, 217 do rsptb[0x04][i] = rsptb[0x03][i] end
+end
+
+-- 统一处理 Modbus 写寄存器逻辑 (由各个串口模块调用)
+function _G.handle_modbus_write(reg, val_or_data, is_multiple)
+    local reg_end = reg
+    if not is_multiple then
+        local high = bit.rshift(val_or_data, 8)
+        local low = bit.band(val_or_data, 0xFF)
+        rsptb[0x03][reg * 2] = high
+        rsptb[0x03][reg * 2 + 1] = low
+        rsptb[0x04][reg * 2] = high
+        rsptb[0x04][reg * 2 + 1] = low
+    else
+        local data = val_or_data
+        local count = #data / 2
+        reg_end = reg + count - 1
+        for i = 1, #data do
+            rsptb[0x03][reg * 2 + i - 1] = data:byte(i)
+            rsptb[0x04][reg * 2 + i - 1] = data:byte(i)
+        end
+    end
+    
+    -- 检查是否写到了串口配置区域 (Reg 100~108)
+    if not (reg > 108 or reg_end < 100) then
+        local function r16(r) return bit.lshift(rsptb[0x03][r*2] or 0, 8) + (rsptb[0x03][r*2+1] or 0) end
+        fskv.set("cfg_u1", {baud_code=r16(100), parity=r16(101), stop=r16(102)})
+        fskv.set("cfg_u2", {baud_code=r16(103), parity=r16(104), stop=r16(105)})
+        fskv.set("cfg_u4", {baud_code=r16(106), parity=r16(107), stop=r16(108)})
+        _G.apply_uart_config()
+    end
+end
+
+_G.apply_uart_config()
 local u1 = require("u1")
 local u2 = require("u2")
 local u4 = require("u4")
@@ -258,19 +317,19 @@ local function schedule_recompute()
     if _btn_recompute_pending then return end
     _btn_recompute_pending = true
     sys.taskInit(function()
-        sys.wait(50)
+        sys.wait(20)
         _btn_recompute_pending = false
         recompute_buttons()
     end)
 end
 gpio.setup(2, function(val) schedule_recompute() end, gpio.PULLUP, gpio.BOTH)
-gpio.debounce(2, 200)
+gpio.debounce(2, 30)
 gpio.setup(3, function(val) schedule_recompute() end, gpio.PULLUP, gpio.BOTH)
-gpio.debounce(3, 200)
+gpio.debounce(3, 30)
 gpio.setup(6, function(val) schedule_recompute() end, gpio.PULLUP, gpio.BOTH)
-gpio.debounce(6, 200)
+gpio.debounce(6, 30)
 gpio.setup(7, function(val) schedule_recompute() end, gpio.PULLUP, gpio.BOTH)
-gpio.debounce(7, 200)
+gpio.debounce(7, 30)
 recompute_buttons()
 
 
@@ -317,25 +376,54 @@ end)
 local c1 = PT.new({control_cycle_ms=100, max_duty=90})
 local c2 = PT.new({control_cycle_ms=100, max_duty=90})
 local c3 = PT.new({control_cycle_ms=100, max_duty=90})
+local c3_sw = PT.new({control_cycle_ms=100, max_duty=90})
 sys.taskInit(function()
     while 1 do
         local t1 = _G.pt1
         local t2 = _G.pt2
         local t3 = _G.pt3
         local d1,d2,d3 = 0,0,0
+        local d3s = 0
         local duty1, err1, p1, i1, dterm1, out1
         local duty2, err2, p2, i2, dterm2, out2
         local duty3, err3, p3, i3, dterm3, out3
+        local duty3_sw, err3_sw, p3_sw, i3_sw, dterm3_sw, out3_sw
         if type(t1) == "number" and t1 ~= 999 then duty1, err1, p1, i1, dterm1, out1 = c1.step(t1); d1 = duty1 end
         if type(t2) == "number" and t2 ~= 999 then duty2, err2, p2, i2, dterm2, out2 = c2.step(t2); d2 = duty2 end
         if type(t3) == "number" and t3 ~= 999 then duty3, err3, p3, i3, dterm3, out3 = c3.step(t3); d3 = duty3 end
+        if type(t3) == "number" and t3 ~= 999 then duty3_sw, err3_sw, p3_sw, i3_sw, dterm3_sw, out3_sw = c3_sw.step(t3); d3s = duty3_sw end
         _G.d1, _G.d2, _G.d3 = d1, d2, d3
         _G.tg1, _G.tg2, _G.tg3 = c1.get_target(), c2.get_target(), c3.get_target()
+        _G.d3_sw = d3s
         -- log.info(pwm_freq,d1)
         pwm.open(32, pwm_freq, d1, 0, 100)
         pwm.open(33, pwm_freq, d2, 0, 100)
         pwm.open(34, pwm_freq, d3, 0, 100)
         sys.wait(100)
+    end
+end)
+
+sys.taskInit(function()
+    local window_ms = 2000
+    local slice_ms = 100
+    local counter = 0
+    while 1 do
+        local d = _G.d3_sw or 0
+        if d < 0 then d = 0 end
+        if d > 100 then d = 100 end
+        
+        local on_ms = (window_ms * d) / 100
+        if counter < on_ms then
+            gpio.set(11, 1)
+        else
+            gpio.set(11, 0)
+        end
+        
+        sys.wait(slice_ms)
+        counter = counter + slice_ms
+        if counter >= window_ms then
+            counter = 0
+        end
     end
 end)
 
