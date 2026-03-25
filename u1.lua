@@ -1,6 +1,6 @@
 local u1 = {}
+
 function u1.init1()
-local THISDEV = 20
 local uart_id = 1
 local uart_baud = band1
 local function modbus_resp(slaveaddr, Instructions, hexdat)
@@ -53,27 +53,16 @@ end
 uart.on(uart_id, "recv", function(id, len)
 local cacheData = uart.read(id, len)
 if cacheData:len() > 0 then
-local a = string.toHex(cacheData)
--- aa=cacheData:sub(1,-3)
-local nextpos, dev, func = pack.unpack(cacheData, "bb", 1)
-local idx, crc = pack.unpack(cacheData:sub(-2, -1), "H")
 local tmp = cacheData:sub(1, -3)
+local _, crc = pack.unpack(cacheData:sub(-2, -1), "H")
 if crc == crypto.crc16("MODBUS", tmp) then
-local nextpos, dev, func, v1, v2, v3, v4, v5, v6, v7, v8, v9,
-v10, v11, v12 = pack.unpack(cacheData, ">b15")
-if func == 0x01 or func == 0x02 or func == 0x03 or func == 0x04 or
-func == 0x05 or func == 0x06 then
+local _, dev, func = pack.unpack(cacheData, "bb", 1)
+if func == 0x01 or func == 0x02 or func == 0x03 or func == 0x04 or func == 0x05 or func == 0x06 then
 if #cacheData >= 8 then
-local strcrc = pack.pack('<h', crypto.crc16("MODBUS",
-cacheData:sub(
-1, 6)))
-if strcrc == cacheData:sub(7, 8) then
-local _, reg, val =
-pack.unpack(cacheData, ">H>H", nextpos)
-local _, bytstart = pack.unpack(cacheData, ">H", 3) -- 启始地址
-local _, bytlen = pack.unpack(cacheData, ">H", 5)   -- 个数
+local _, bytstart = pack.unpack(cacheData, ">H", 3)
+local _, bytlen = pack.unpack(cacheData, ">H", 5)
 if func == 0x01 then
-if THISDEV == dev or dev == 0xFA then
+if _G.u1_addr == dev or dev == 0xFA then
 local nbytes = math.ceil(bytlen / 8)
 local out_bytes = {}
 for b = 0, nbytes - 1 do
@@ -87,13 +76,14 @@ if bit.band(bit.rshift(byteVal, bitPos), 1) == 1 then
 val = bit.bor(val, bit.lshift(1, bitp))
 end
 end
-out_bytes[#out_bytes + 1] = string.format("%02x", val)
+out_bytes[b + 1] = string.char(val)
 end
-local payload = table.concat(out_bytes, "")
-modbus_resp(THISDEV, func, string.format("%02x%s", nbytes, payload))
+local payload = table.concat(out_bytes)
+local hex_payload = payload:toHex()
+modbus_resp(_G.u1_addr, func, string.format("%02X%s", nbytes, hex_payload))
 end
 elseif func == 0x02 then
-if THISDEV == dev or dev == 0xFA then
+if _G.u1_addr == dev or dev == 0xFA then
 local nbytes = math.ceil(bytlen / 8)
 local out_bytes = {}
 for b = 0, nbytes - 1 do
@@ -107,16 +97,17 @@ if bit.band(bit.rshift(byteVal, bitPos), 1) == 1 then
 val = bit.bor(val, bit.lshift(1, bitp))
 end
 end
-out_bytes[#out_bytes + 1] = string.format("%02x", val)
+out_bytes[b + 1] = string.char(val)
 end
-local payload = table.concat(out_bytes, "")
-modbus_resp(THISDEV, func, string.format("%02x%s", nbytes, payload))
+local payload = table.concat(out_bytes)
+local hex_payload = payload:toHex()
+modbus_resp(_G.u1_addr, func, string.format("%02X%s", nbytes, hex_payload))
 end
 elseif func == 0x03 or func == 0x04 then
-if THISDEV == dev or dev == 0xFA then
+if _G.u1_addr == dev or dev == 0xFA then
 local bytlens = bytlen * 2
 local bytstarts = bytstart * 2
-if (bytlens + bytstart) <= #rsptb[func] then
+if (bytstarts + bytlens) <= 400 then
 local out_bytes = {}
 for i = bytstarts, bytlens + bytstarts - 1 do
 local tmpdata = 0x00
@@ -126,12 +117,10 @@ end
 out_bytes[#out_bytes + 1] = string.format("%02X", tmpdata)
 end
 local strhex = table.concat(out_bytes)
-modbus_resp(THISDEV, func, string.format("%02X%s", bytlens, strhex))
+modbus_resp(_G.u1_addr, func, string.format("%02X%s", bytlens, strhex))
 else
-modbus_resp(THISDEV, func + 0x80,
-string.format("%02x", 0x02))
+modbus_resp(_G.u1_addr, func + 0x80, string.format("%02x", 0x02))
 end
-else
 end
 elseif func == 0x05 then
 local coil_addr = bytstart
@@ -146,45 +135,49 @@ elseif coil_val == 0x0000 then
 rsptb[0x01][byteIndex] = bit.band(currentByte, bit.bnot(bit.lshift(1, bitPos)))
 end
 local strhex = string.format("%04X%04X", bytstart, bytlen)
-modbus_resp(THISDEV, func, strhex)
+modbus_resp(_G.u1_addr, func, strhex)
 elseif func == 0x06 then
 local strhex = string.format("%04X%04X", bytstart, bytlen)
 _G.handle_modbus_write(bytstart, bytlen, false)
-modbus_resp(THISDEV, func, strhex)
+modbus_resp(_G.u1_addr, func, strhex)
 else
-modbus_resp(THISDEV, func + 0x80,
-string.format("%02x", 0x01))
-end
-else
--- strcrc:toHex())
+modbus_resp(_G.u1_addr, func + 0x80, string.format("%02x", 0x01))
 end
 end
 elseif func == 0x0F then
-local dlen = cacheData:byte(nextpos + 4)
+local dlen = cacheData:byte(7)
 if #cacheData >= 7 + dlen + 2 then
 local strcrc = pack.pack('<h', crypto.crc16("MODBUS",
 cacheData:sub(1, 7 + dlen)))
 if strcrc == cacheData:sub(7 + dlen + 1, 7 + dlen + 2) then
-local _, reg, val = pack.unpack(cacheData, ">H>H", nextpos)
+local _, reg, val = pack.unpack(cacheData, ">H>H", 3)
 local tmpdat = cacheData:sub(8, dlen + 8 - 1)
 local strhex = string.format("%04X%04X", reg, val)
 modbus_resp(dev, func, strhex)
-else
--- #cacheData, cacheData:sub(7 + dlen + 1, 7 + dlen + 2):toHex(), strcrc:toHex())
 end
 end
 elseif func == 0x10 then
-local dlen = cacheData:byte(nextpos + 4)
+local dlen = cacheData:byte(7)
 if #cacheData >= 7 then
 local strcrc = pack.pack('<h', crypto.crc16("MODBUS", cacheData:sub(1, -3)))
 if strcrc == cacheData:sub(-2, -1) then
-local _, reg, val = pack.unpack(cacheData, ">H>H", nextpos)
+local _, reg, val = pack.unpack(cacheData, ">H>H", 3)
 local tmpdat = cacheData:sub(8, -3)
-_G.handle_modbus_write(reg, tmpdat, true)
-local strhex = string.format("%04X%04X", reg, val)
-modbus_resp(dev, func, strhex)
+log.info("u1.10", reg, val, dlen, tmpdat:toHex())
+local status, err = pcall(_G.handle_modbus_write, reg, tmpdat, true)
+if not status then log.error("u1.e", err) end
+local strhex = ""
+if reg ~= nil and val ~= nil then
+strhex = string.format("%04X%04X", reg, val)
 else
--- #cacheData, cacheData:sub(7 + dlen + 1, 7 + dlen + 2):toHex(), strcrc:toHex())
+local _, raw_reg, raw_val = pack.unpack(cacheData, ">H>H", 3)
+if raw_reg and raw_val then
+strhex = string.format("%04X%04X", raw_reg, raw_val)
+else
+strhex = "00000000"
+end
+end
+modbus_resp(_G.u1_addr, func, strhex)
 end
 end
 end

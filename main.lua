@@ -1,5 +1,5 @@
 PROJECT = "PLC-7k-2485-232-4i"
-VERSION = "1.0.3"
+VERSION = "1.1.0"
 sys = require("sys")
 if wdt then
 wdt.init(9000)--初始化watchdog设置为9s
@@ -17,22 +17,13 @@ rsptb[0x02] = {}
 for i = 0, 7 do rsptb[0x01][i] = 0x00 end
 for i = 0, 7 do rsptb[0x02][i] = 0x00 end
 rsptb[0x03] = {}
-for i = 0, 199 do rsptb[0x03][i] = 0x00 end
+-- 初始化 160 个字节，对应 80 个寄存器 (0~79)
+for i = 0, 159 do rsptb[0x03][i] = 0x00 end
 rsptb[0x04] = {}
-for i = 0, 199 do rsptb[0x04][i] = 0x00 end
+for i = 0, 159 do rsptb[0x04][i] = 0x00 end
 end
 fskv.init()
 log.style(1)
-if not fskv.get("u0") then
-fskv.set("u0", {1, 2, 8, 0, 1})  -- {add, band, databit, crc, stop}
-else
-end
-local u0_config = fskv.get("u0") or {1, 2, 8, 0, 1}  -- 获取完整配置，有默认值
-_G.addr0 = u0_config[1] or 1  -- 设备地址 (add)
-_G.band0 = bandchange(u0_config[2] or 9600)  -- 波特率 (band)
-_G.databit0 = u0_config[3] or 8  -- 数据位 (databit)
-_G.crc0 = u0_config[4] or 0  -- CRC校验 (crc)
-_G.stop0 = u0_config[5] or 1  -- 停止位 (stop)
 local function swap_bytes_zbuff(data_string, pattern)
 local buff = zbuff.create(4)
 buff:copy(0, data_string, 0, 4)
@@ -152,30 +143,76 @@ local bauds = {[0]=2400, [1]=4800, [2]=9600, [3]=19200, [4]=38400, [5]=57600, [6
 return bauds[code] or 9600
 end
 function _G.apply_uart_config()
-local def = {baud_code=2, parity=0, stop=1} -- 9600, NONE, 1
+local def = {addr=20, baud_code=2, databit=8, parity=0, stop=1} -- 默认地址20, 9600, 8, NONE, 1
 local u1_cfg = fskv.get("cfg_u1") or def
 local u2_cfg = fskv.get("cfg_u2") or def
 local u4_cfg = fskv.get("cfg_u4") or def
+
+-- 兼容老版本，如果没有addr和databit则补充默认值
+if not u1_cfg.addr then u1_cfg.addr = 20 end
+if not u1_cfg.databit then u1_cfg.databit = 8 end
+if not u2_cfg.addr then u2_cfg.addr = 20 end
+if not u2_cfg.databit then u2_cfg.databit = 8 end
+if not u4_cfg.addr then u4_cfg.addr = 20 end
+if not u4_cfg.databit then u4_cfg.databit = 8 end
+
+_G.u1_addr = u1_cfg.addr
+_G.u2_addr = u2_cfg.addr
+_G.u4_addr = u4_cfg.addr
+
 local function get_parity(code)
 if code == 1 then return uart.ODD end
 if code == 2 then return uart.EVEN end
 return uart.NONE
 end
-uart.setup(1, get_baud(u1_cfg.baud_code), 8, u1_cfg.stop, get_parity(u1_cfg.parity), uart.LSB, 1024, nil, 0, 2000)
-uart.setup(2, get_baud(u2_cfg.baud_code), 8, u2_cfg.stop, get_parity(u2_cfg.parity), uart.LSB, 1024, 14, 0, 2000)
-uart.setup(4, get_baud(u4_cfg.baud_code), 8, u4_cfg.stop, get_parity(u4_cfg.parity), uart.LSB, 1024, 43, 0, 2000)
-rsptb[0x03][200] = bit.rshift(u1_cfg.baud_code, 8); rsptb[0x03][201] = bit.band(u1_cfg.baud_code, 0xFF)
-rsptb[0x03][202] = bit.rshift(u1_cfg.parity, 8); rsptb[0x03][203] = bit.band(u1_cfg.parity, 0xFF)
-rsptb[0x03][204] = bit.rshift(u1_cfg.stop, 8); rsptb[0x03][205] = bit.band(u1_cfg.stop, 0xFF)
-rsptb[0x03][206] = bit.rshift(u2_cfg.baud_code, 8); rsptb[0x03][207] = bit.band(u2_cfg.baud_code, 0xFF)
-rsptb[0x03][208] = bit.rshift(u2_cfg.parity, 8); rsptb[0x03][209] = bit.band(u2_cfg.parity, 0xFF)
-rsptb[0x03][210] = bit.rshift(u2_cfg.stop, 8); rsptb[0x03][211] = bit.band(u2_cfg.stop, 0xFF)
-rsptb[0x03][212] = bit.rshift(u4_cfg.baud_code, 8); rsptb[0x03][213] = bit.band(u4_cfg.baud_code, 0xFF)
-rsptb[0x03][214] = bit.rshift(u4_cfg.parity, 8); rsptb[0x03][215] = bit.band(u4_cfg.parity, 0xFF)
-rsptb[0x03][216] = bit.rshift(u4_cfg.stop, 8); rsptb[0x03][217] = bit.band(u4_cfg.stop, 0xFF)
-for i = 200, 217 do rsptb[0x04][i] = rsptb[0x03][i] end
+uart.close(1)
+uart.setup(1, get_baud(u1_cfg.baud_code), u1_cfg.databit, u1_cfg.stop, get_parity(u1_cfg.parity), uart.LSB, 1024, nil, 0, 2000)
+uart.close(2)
+uart.setup(2, get_baud(u2_cfg.baud_code), u2_cfg.databit, u2_cfg.stop, get_parity(u2_cfg.parity), uart.LSB, 1024, 14, 0, 2000)
+uart.close(4)
+uart.setup(4, get_baud(u4_cfg.baud_code), u4_cfg.databit, u4_cfg.stop, get_parity(u4_cfg.parity), uart.LSB, 1024, 43, 0, 2000)
+
+-- 因为关闭后会清除回调，需要重新绑定中断回调
+if package and package.loaded then
+if package.loaded["u1"] then package.loaded["u1"].init1() end
+if package.loaded["u2"] then package.loaded["u2"].init1() end
+if package.loaded["u4"] then package.loaded["u4"].init1() end
+end
+
+-- 配置从寄存器 60 开始（字节索引 120），各个串口独立配置
+rsptb[0x03][120] = bit.rshift(u1_cfg.addr, 8); rsptb[0x03][121] = bit.band(u1_cfg.addr, 0xFF)
+rsptb[0x03][122] = bit.rshift(u1_cfg.baud_code, 8); rsptb[0x03][123] = bit.band(u1_cfg.baud_code, 0xFF)
+rsptb[0x03][124] = bit.rshift(u1_cfg.databit, 8); rsptb[0x03][125] = bit.band(u1_cfg.databit, 0xFF)
+rsptb[0x03][126] = bit.rshift(u1_cfg.parity, 8); rsptb[0x03][127] = bit.band(u1_cfg.parity, 0xFF)
+rsptb[0x03][128] = bit.rshift(u1_cfg.stop, 8); rsptb[0x03][129] = bit.band(u1_cfg.stop, 0xFF)
+
+rsptb[0x03][130] = bit.rshift(u2_cfg.addr, 8); rsptb[0x03][131] = bit.band(u2_cfg.addr, 0xFF)
+rsptb[0x03][132] = bit.rshift(u2_cfg.baud_code, 8); rsptb[0x03][133] = bit.band(u2_cfg.baud_code, 0xFF)
+rsptb[0x03][134] = bit.rshift(u2_cfg.databit, 8); rsptb[0x03][135] = bit.band(u2_cfg.databit, 0xFF)
+rsptb[0x03][136] = bit.rshift(u2_cfg.parity, 8); rsptb[0x03][137] = bit.band(u2_cfg.parity, 0xFF)
+rsptb[0x03][138] = bit.rshift(u2_cfg.stop, 8); rsptb[0x03][139] = bit.band(u2_cfg.stop, 0xFF)
+
+rsptb[0x03][140] = bit.rshift(u4_cfg.addr, 8); rsptb[0x03][141] = bit.band(u4_cfg.addr, 0xFF)
+rsptb[0x03][142] = bit.rshift(u4_cfg.baud_code, 8); rsptb[0x03][143] = bit.band(u4_cfg.baud_code, 0xFF)
+rsptb[0x03][144] = bit.rshift(u4_cfg.databit, 8); rsptb[0x03][145] = bit.band(u4_cfg.databit, 0xFF)
+rsptb[0x03][146] = bit.rshift(u4_cfg.parity, 8); rsptb[0x03][147] = bit.band(u4_cfg.parity, 0xFF)
+rsptb[0x03][148] = bit.rshift(u4_cfg.stop, 8); rsptb[0x03][149] = bit.band(u4_cfg.stop, 0xFF)
+
+for i = 120, 149 do rsptb[0x04][i] = rsptb[0x03][i] end
+
+-- 将报警阈值浮点数(默认60)存入寄存器 30,31 (字节索引 60-63)
+local lim_str = fskv.get("nmhc_limit_raw")
+if not lim_str or #lim_str ~= 4 then
+lim_str = pack_modbus_data(60.0, "ABCD")
+end
+for i = 1, 4 do
+    rsptb[0x03][60 + i - 1] = lim_str:byte(i)
+    rsptb[0x04][60 + i - 1] = lim_str:byte(i)
+end
 end
 function _G.handle_modbus_write(reg, val_or_data, is_multiple)
+if type(reg) ~= "number" then return end
+log.info("W", reg, is_multiple)
 local reg_end = reg
 if not is_multiple then
 local high = bit.rshift(val_or_data, 8)
@@ -186,19 +223,33 @@ rsptb[0x04][reg * 2] = high
 rsptb[0x04][reg * 2 + 1] = low
 else
 local data = val_or_data
+if type(data) == "string" then
 local count = #data / 2
 reg_end = reg + count - 1
+log.info("W", #data, reg_end)
 for i = 1, #data do
 rsptb[0x03][reg * 2 + i - 1] = data:byte(i)
 rsptb[0x04][reg * 2 + i - 1] = data:byte(i)
 end
+else
+log.info("W err", type(data))
 end
-if not (reg > 108 or reg_end < 100) then
+end
+if type(reg_end) ~= "number" then reg_end = reg end
+if not (reg > 74 or reg_end < 60) then
 local function r16(r) return bit.lshift(rsptb[0x03][r*2] or 0, 8) + (rsptb[0x03][r*2+1] or 0) end
-fskv.set("cfg_u1", {baud_code=r16(100), parity=r16(101), stop=r16(102)})
-fskv.set("cfg_u2", {baud_code=r16(103), parity=r16(104), stop=r16(105)})
-fskv.set("cfg_u4", {baud_code=r16(106), parity=r16(107), stop=r16(108)})
-_G.apply_uart_config()
+fskv.set("cfg_u1", {addr=r16(60), baud_code=r16(61), databit=r16(62), parity=r16(63), stop=r16(64)})
+fskv.set("cfg_u2", {addr=r16(65), baud_code=r16(66), databit=r16(67), parity=r16(68), stop=r16(69)})
+fskv.set("cfg_u4", {addr=r16(70), baud_code=r16(71), databit=r16(72), parity=r16(73), stop=r16(74)})
+end
+if reg <= 31 and reg_end >= 30 then
+local b1 = rsptb[0x03][60] or 0
+local b2 = rsptb[0x03][61] or 0
+local b3 = rsptb[0x03][62] or 0
+local b4 = rsptb[0x03][63] or 0
+local str = string.char(b1, b2, b3, b4)
+local res = fskv.set("nmhc_limit_raw", str)
+log.info("W lim", b1, b2, b3, b4, res)
 end
 end
 _G.apply_uart_config()
@@ -258,7 +309,14 @@ local alarm_on = (gpio.get(5) == 1) and 1 or 0
 local out_byte = (pump & 1) | ((cal & 1) << 1) | ((insitu & 1) << 2) | (alarm_on << 3)
 rsptb[0x02][0] = in_byte
 rsptb[0x01][0] = out_byte
-pcall(store_to_rsptb, m and 1 or 0, "ushort", 101)
+pcall(store_to_rsptb, m and 1 or 0, "ushort", 103)
+pcall(store_to_rsptb, alarm_on, "ushort", 105)
+pcall(store_to_rsptb, pump, "ushort", 107)
+pcall(store_to_rsptb, cal, "ushort", 109)
+pcall(store_to_rsptb, insitu, "ushort", 111)
+pcall(store_to_rsptb, s and 1 or 0, "ushort", 113)
+pcall(store_to_rsptb, c and 1 or 0, "ushort", 115)
+pcall(store_to_rsptb, b and 1 or 0, "ushort", 117)
 end
 local _btn_recompute_pending = false
 local function schedule_recompute()
@@ -288,6 +346,29 @@ local PT = require("pt100_control")
 temp_manager.start({ id = 1, cpol = 1, cpha = 1, databits = 8, clock = 1 * 1000 * 1000 }, { _G.p1, _G.p2, _G.p3 }, 10)
 sys.taskInit(function()
 while 1 do
+local lim_str = fskv.get("nmhc_limit_raw")
+if not lim_str or #lim_str ~= 4 then
+lim_str = pack_modbus_data(60.0, "ABCD")
+end
+local _, limit = pack.unpack(lim_str, ">f")
+if not limit or type(limit) ~= "number" then limit = 60.0 end
+
+-- 非甲烷总烃存放在第16、17寄存器（字节索引32-35）
+local b1 = rsptb[0x03][32] or 0
+local b2 = rsptb[0x03][33] or 0
+local b3 = rsptb[0x03][34] or 0
+local b4 = rsptb[0x03][35] or 0
+local nmhc = 0
+if b1+b2+b3+b4 > 0 then
+local str = string.char(b1, b2, b3, b4)
+_, nmhc = pack.unpack(str, ">f")
+end
+if nmhc > limit then
+gpio.set(5, 1)
+else
+gpio.set(5, 0)
+end
+if schedule_recompute then schedule_recompute() end
 sys.wait(1000)
 end
 end)

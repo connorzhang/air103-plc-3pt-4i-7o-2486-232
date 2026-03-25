@@ -80,8 +80,14 @@ local result, dev, func, s = sys.waitUntil("U4_MODBUS_RECV", 1000)
 if result and dev == poll_slave_addr and func == 0x03 then
 local _, _, _, count = pack.unpack(s, "bbb")
 if count == poll_reg_count * 2 and #s == (5 + count) then
+u4_fail_cnt = 0
 local data_payload = s:sub(4, 3 + count)
 _G.handle_modbus_write(data_store_start_reg, data_payload, true)
+end
+else
+u4_fail_cnt = (u4_fail_cnt or 0) + 1
+if u4_fail_cnt >= 3 then
+_G.handle_modbus_write(data_store_start_reg, string.rep("\0", poll_reg_count * 2), true)
 end
 end
 is_processing = false
