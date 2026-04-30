@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>数采仪对接文档</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: "Microsoft YaHei", "SimHei", Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 100%;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f7fa;
+        }
+        
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            padding: 40px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+        }
+        
+        h1 {
+            font-size: 28px;
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 30px;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 15px;
+            font-weight: 600;
+        }
+        
+        h2 {
+            font-size: 22px;
+            color: #2c3e50;
+            margin-top: 30px;
+            margin-bottom: 15px;
+            border-left: 4px solid #3498db;
+            padding-left: 12px;
+            font-weight: 600;
+        }
+        
+        h3 {
+            font-size: 18px;
+            color: #34495e;
+            margin-top: 25px;
+            margin-bottom: 12px;
+            font-weight: 600;
+        }
+        
+        h4 {
+            font-size: 16px;
+            color: #34495e;
+            margin-top: 18px;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+        
+        p {
+            margin-bottom: 10px;
+            text-align: justify;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 16px 0;
+            font-size: 14px;
+            border: 1px solid #e9ecef;
+            border-radius: 6px;
+            overflow: hidden;
+        }
+        
+        th, td {
+            border: 1px solid #e9ecef;
+            padding: 10px 12px;
+            text-align: left;
+        }
+        
+        th {
+            background-color: #3498db;
+            color: white;
+            font-weight: 600;
+        }
+        
+        tr:nth-child(even) {
+            background-color: #f8f9fa;
+        }
+        
+        tr:hover {
+            background-color: #f1f3f5;
+        }
+        
+        code {
+            background-color: #f4f4f4;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: "Consolas", "Monaco", monospace;
+            font-size: 10pt;
+            color: #c0392b;
+        }
+        
+        pre {
+            background-color: #f8f9fa;
+            color: #333;
+            border: 1px solid #e9ecef;
+            border-radius: 6px;
+            padding: 16px;
+            margin: 16px 0;
+            overflow-x: auto;
+            font-family: "Consolas", "Monaco", "Fira Code", monospace;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+        
+        code {
+            background-color: #f1f1f1;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: "Consolas", "Monaco", "Fira Code", monospace;
+            font-size: 14px;
+            color: #c53030;
+        }
+        
+        blockquote {
+            border-left: 4px solid #3498db;
+            margin: 20px 0;
+            padding: 15px 20px;
+            background-color: #ebf5fb;
+            font-style: italic;
+            border-radius: 0 8px 8px 0;
+        }
+        
+        ul, ol {
+            margin: 10px 0 10px 30px;
+        }
+        
+        li {
+            margin-bottom: 5px;
+        }
+        
+        hr {
+            border: none;
+            border-top: 2px solid #ddd;
+            margin: 30px 0;
+        }
+        
+        .page-break {
+            page-break-before: always;
+        }
+        
+        @media print {
+            body {
+                padding: 15mm;
+            }
+            
+            .no-print {
+                display: none;
+            }
+            
+            h1, h2, h3, h4 {
+                page-break-after: avoid;
+            }
+            
+            pre, table {
+                page-break-inside: avoid;
+            }
+        }
+        
+        .highlight {
+            background-color: #fff3cd;
+            padding: 2px 4px;
+            border-radius: 3px;
+        }
+        
+        .info-box {
+            background-color: #d1ecf1;
+            border: 1px solid #bee5eb;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 15px 0;
+        }
+        
+        .warning-box {
+            background-color: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 15px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+    <h1>数采仪对接文档</h1>
+    
+    <h2>1. 文档概述</h2>
+    
+    <h3>1.1 文档目的</h3>
+    <p>本文档旨在指导数采仪与智能控制器的对接，包括设备编码读取、标定状态监测和温度数据采集。</p>
+    
+    <h3>1.2 适用范围</h3>
+    <ul>
+        <li>环保监测数采仪</li>
+        <li>支持Modbus RTU协议的采集设备</li>
+        <li>需要读取设备状态和数据的第三方系统</li>
+    </ul>
+    
+    <h3>1.3 文档版本</h3>
+    <table>
+        <tr><th>项目</th><th>内容</th></tr>
+        <tr><td>版本</td><td>V1.0</td></tr>
+        <tr><td>日期</td><td>2026-04-09</td></tr>
+    </table>
+    
+    <hr>
+    
+    <h2>2. 设备信息</h2>
+    
+    <h3>2.1 基本参数</h3>
+    <table>
+        <tr><th>参数项</th><th>值</th><th>说明</th></tr>
+        <tr><td>设备类型</td><td>智能控制器</td><td>专用型数据采集与逻辑控制终端</td></tr>
+        <tr><td>通讯协议</td><td>Modbus RTU</td><td>标准Modbus RTU从站协议</td></tr>
+        <tr><td>默认设备地址</td><td>20 (0x14)</td><td>可通过寄存器修改</td></tr>
+        <tr><td>默认波特率</td><td>9600</td><td>支持2400-115200</td></tr>
+        <tr><td>数据位</td><td>8</td><td>固定</td></tr>
+        <tr><td>停止位</td><td>1</td><td>固定</td></tr>
+        <tr><td>校验位</td><td>无</td><td>支持无/奇/偶校验</td></tr>
+    </table>
+    
+    <h3>2.2 支持的功能码</h3>
+    <table>
+        <tr><th>功能码</th><th>功能描述</th><th>适用场景</th></tr>
+        <tr><td>01</td><td>读线圈状态</td><td>读取输出状态（采样泵、标定阀等）</td></tr>
+        <tr><td>02</td><td>读离散输入状态</td><td>读取按钮输入状态</td></tr>
+        <tr><td>03</td><td>读保持寄存器</td><td>读取设备编码、温度数据等</td></tr>
+        <tr><td>04</td><td>读输入寄存器</td><td>读取实时数据</td></tr>
+        <tr><td>05</td><td>写单个线圈</td><td>控制输出（需权限）</td></tr>
+        <tr><td>06</td><td>写单个寄存器</td><td>修改参数（需权限）</td></tr>
+        <tr><td>10</td><td>写多个寄存器</td><td>批量修改参数（需权限）</td></tr>
+    </table>
+    
+    <hr>
+    
+    <h2>3. 关键数据读取</h2>
+    
+    <h3>3.1 设备编码读取</h3>
+    
+    <h4>3.1.1 功能说明</h4>
+    <p>设备编码为24字节的唯一标识，采用ASCII字符串格式，存储在保持寄存器80-91中。设备编码用于标识设备身份，在环保监测系统中必须准确读取。</p>
+    
+    <h4>3.1.2 寄存器信息</h4>
+    <table>
+        <tr><th>寄存器地址</th><th>数据长度</th><th>数据格式</th><th>访问方式</th></tr>
+        <tr><td>80-91</td><td>12个寄存器</td><td>字节数组</td><td>功能码03</td></tr>
+    </table>
+    
+    <h4>3.1.3 通信示例</h4>
+    <p><strong>请求报文：</strong></p>
+    <pre><code>14 03 00 50 00 0C 58 3C</code></pre>
+    <ul>
+        <li>14：设备地址（20）</li>
+        <li>03：功能码（读保持寄存器）</li>
+        <li>00 50：起始寄存器地址（80）</li>
+        <li>00 0C：寄存器数量（12）</li>
+        <li>58 3C：CRC校验</li>
+    </ul>
+    
+    <p><strong>响应报文：</strong></p>
+    <pre><code>14 03 18 36 39 37 30 30 30 30 30 30 30 30 30 31 41 42 43 44 45 46 47 31 32 33 34 XX XX</code></pre>
+    <ul>
+        <li>14：设备地址</li>
+        <li>03：功能码</li>
+        <li>18：字节数（24字节）</li>
+        <li>36 39...33 34：设备编码数据（示例：6970000000001ABCDEFG1234）</li>
+        <li>XX XX：CRC校验</li>
+    </ul>
+    
+
+    
+    <hr>
+    
+    <h3>3.2 状态读取</h3>
+    
+    <h4>3.2.1 功能说明</h4>
+    <p>通过读取离散输入状态来获取设备的维护和标定状态。维护状态和标定状态是环保监测中的重要参数，用于标识设备是否处于特殊工作状态。</p>
+    
+    <h4>3.2.2 寄存器信息（基于实际代码）</h4>
+    <table>
+        <tr><th>离散输入位</th><th>功能描述</th><th>状态含义</th><th>对应按钮</th></tr>
+        <tr><td>0</td><td>采样按钮</td><td>1=按下，0=未按</td><td>采样按钮</td></tr>
+        <tr><td>1</td><td>标定按钮</td><td>1=按下（标定状态），0=未按</td><td>标定按钮</td></tr>
+        <tr><td>2</td><td>维护按钮</td><td>1=按下（维护状态），0=未按</td><td>维护按钮</td></tr>
+        <tr><td>3</td><td>原位标定按钮</td><td>1=按下，0=未按</td><td>原位标定按钮</td></tr>
+    </table>
+    
+    <p><strong>注：</strong> 离散输入使用功能码02读取，读取的是一个字节数据，包含4个按钮状态。</p>
+    
+    <h4>3.2.3 读取标定状态</h4>
+    <p><strong>请求报文：</strong></p>
+    <pre><code>14 02 00 01 00 01 98 0A</code></pre>
+    <ul>
+        <li>14：设备地址</li>
+        <li>02：功能码（读离散输入）</li>
+        <li>00 01：离散输入地址（1-标定按钮）</li>
+        <li>00 01：数量（1个）</li>
+        <li>98 0A：CRC校验</li>
+    </ul>
+    
+    <p><strong>响应报文：</strong></p>
+    <pre><code>14 02 01 00 XX XX  # 正常状态
+14 02 01 01 XX XX  # 标定状态</code></pre>
+    
+    <h4>3.2.4 读取维护状态</h4>
+    <p><strong>请求报文：</strong></p>
+    <pre><code>14 02 00 02 00 01 68 0B</code></pre>
+    <ul>
+        <li>14：设备地址</li>
+        <li>02：功能码（读离散输入）</li>
+        <li>00 02：离散输入地址（2-维护按钮）</li>
+        <li>00 01：数量（1个）</li>
+        <li>68 0B：CRC校验</li>
+    </ul>
+    
+    <p><strong>响应报文：</strong></p>
+    <pre><code>14 02 01 00 XX XX  # 正常状态
+14 02 01 01 XX XX  # 维护状态</code></pre>
+    
+    <hr>
+    
+    <h3>3.3 温度数据读取</h3>
+    
+    <h4>3.3.1 功能说明</h4>
+    <p>温度数据包括保温箱温度、保温管温度和伴热管线温度，采用IEEE754 Float32浮点数格式（ABCD字节序）。</p>
+    
+    <h4>3.3.2 寄存器信息</h4>
+    <table>
+        <tr><th>寄存器地址</th><th>参数名称</th><th>数据类型</th><th>单位</th></tr>
+        <tr><td>0-1</td><td>保温箱温度</td><td>Float32</td><td>°C</td></tr>
+        <tr><td>2-3</td><td>保温管温度</td><td>Float32</td><td>°C</td></tr>
+        <tr><td>4-5</td><td>伴热管线温度</td><td>Float32</td><td>°C</td></tr>
+    </table>
+    
+    <h4>3.3.3 读取保温箱温度</h4>
+    <p><strong>请求报文：</strong></p>
+    <pre><code>14 03 00 00 00 02 79 CB</code></pre>
+    <ul>
+        <li>14：设备地址</li>
+        <li>03：功能码（读保持寄存器）</li>
+        <li>00 00：起始寄存器地址（0）</li>
+        <li>00 02：寄存器数量（2）</li>
+        <li>79 CB：CRC校验</li>
+    </ul>
+    
+    <p><strong>响应报文：</strong></p>
+    <pre><code>14 03 04 43 36 00 00 4A 39</code></pre>
+    <ul>
+        <li>14：设备地址</li>
+        <li>03：功能码</li>
+        <li>04：字节数（4字节）</li>
+        <li>43 36 00 00：温度数据（150.0°C）</li>
+        <li>4A 39：CRC校验</li>
+    </ul>
+    
+    <h4>3.3.4 读取保温管温度</h4>
+    <p><strong>请求报文：</strong></p>
+    <pre><code>14 03 00 02 00 02 38 0B</code></pre>
+    
+    <h4>3.3.5 读取伴热管线温度</h4>
+    <p><strong>请求报文：</strong></p>
+    <pre><code>14 03 00 04 00 02 F9 0B</code></pre>
+    
+
+    
+    <hr>
+    
+    <h2>4. 完整通信流程</h2>
+    
+    <h3>4.1 标准轮询流程</h3>
+    <pre><code>开始
+  │
+  ▼
+读取设备编码 ──► 确认设备身份
+  │
+  ▼
+读取温度数据 ──► 采集保温箱、保温管、伴热管线温度
+  │
+  ▼
+读取标定状态 ──► 检查是否处于标定状态
+  │
+  ▼
+读取维护状态 ──► 检查是否处于维护状态
+  │
+  ▼
+数据存储与上报 ──► 将数据存入数采仪并上报平台
+  │
+  ▼
+等待下一次轮询（建议1-5秒）
+  │
+  ▼
+返回开始</code></pre>
+    
+    <h3>4.2 通信时序建议</h3>
+    <table>
+        <tr><th>操作</th><th>建议间隔</th><th>说明</th></tr>
+        <tr><td>设备编码读取</td><td>每次连接或每小时</td><td>设备编码不常变化</td></tr>
+        <tr><td>温度数据读取</td><td>1-5秒</td><td>实时监测温度变化</td></tr>
+        <tr><td>状态读取</td><td>1-5秒</td><td>实时监测设备状态</td></tr>
+        <tr><td>完整轮询</td><td>1-5秒</td><td>建议同时读取所有数据</td></tr>
+    </table>
+    
+    <hr>
+    
+    <h2>5. 数据解析指南</h2>
+    
+    <h3>5.1 设备编码解析</h3>
+    <ul>
+        <li><strong>数据格式</strong>：24字节ASCII字符串</li>
+        <li><strong>编码规则</strong>：厂商识别代码(7-10位) + 厂商产品类别代码(2-5位) + 校验位(1位) + 产品序列号(11位)</li>
+        <li><strong>示例</strong>：6970000000001ABCDEFG1234</li>
+        <li><strong>解析方法</strong>：直接将字节数组转换为字符串</li>
+    </ul>
+    
+    <h3>5.2 温度数据解析</h3>
+    <ul>
+        <li><strong>数据格式</strong>：IEEE754 Float32，ABCD字节序</li>
+        <li><strong>数值范围</strong>：-40.0°C ~ 200.0°C（典型值）</li>
+        <li><strong>精度</strong>：0.1°C</li>
+        <li><strong>异常值</strong>：999.0表示传感器故障或未连接</li>
+    </ul>
+    
+    <h3>5.3 状态解析</h3>
+    <table>
+        <tr><th>状态类型</th><th>数据源</th><th>判断条件</th></tr>
+        <tr><td>维护状态</td><td>离散输入地址3</td><td>1=维护中，0=正常</td></tr>
+        <tr><td>标定状态</td><td>离散输入地址1</td><td>1=标定中，0=正常</td></tr>
+        <tr><td>原位标定状态</td><td>离散输入地址2</td><td>1=原位标定中，0=正常</td></tr>
+    </table>
+    
+    <hr>
+    
+    <h2>6. 注意事项</h2>
+    
+    <h3>6.1 通讯参数配置</h3>
+    <ul>
+        <li>确保数采仪与控制器的通讯参数完全一致</li>
+        <li>设备地址、波特率、数据位、停止位、校验位必须匹配</li>
+        <li>修改通讯参数后需断电重启生效</li>
+    </ul>
+    
+    <h3>6.2 数据读取注意事项</h3>
+    <ul>
+        <li>读取设备编码时需要完整读取12个寄存器（24字节）</li>
+        <li>温度数据为浮点数，需要正确解析字节序（ABCD）</li>
+        <li>离散输入状态每次读取1个或多个位，注意位对齐</li>
+    </ul>
+    
+    <h3>6.3 异常处理</h3>
+    <ul>
+        <li>通讯超时：检查物理连接和通讯参数</li>
+        <li>数据异常：检查寄存器地址和数据格式</li>
+        <li>状态异常：检查设备按钮和继电器输出状态</li>
+    </ul>
+    
+    <h3>6.4 性能优化</h3>
+    <ul>
+        <li>建议使用功能码10批量读取多个寄存器，减少通信次数</li>
+        <li>合理设置轮询间隔，避免过于频繁的通信</li>
+        <li>对于不常变化的数据（如设备编码），可减少读取频率</li>
+    </ul>
+    
+    <hr>
+    
+    <h2>7. 故障排除</h2>
+    
+    <h3>7.1 常见故障及解决方法</h3>
+    <table>
+        <tr><th>故障现象</th><th>可能原因</th><th>解决方法</th></tr>
+        <tr><td>无法建立通讯</td><td>通讯参数不匹配</td><td>检查设备地址、波特率等参数设置</td></tr>
+        <tr><td>读取设备编码失败</td><td>寄存器地址错误</td><td>使用正确的寄存器地址80-91</td></tr>
+        <tr><td>温度数据异常</td><td>传感器故障或接线问题</td><td>检查传感器连接和状态</td></tr>
+        <tr><td>状态读取错误</td><td>离散输入地址错误</td><td>使用正确的离散输入地址</td></tr>
+    </table>
+    
+    <h3>7.2 通讯故障排查步骤</h3>
+    <ol>
+        <li>检查物理连接是否正常</li>
+        <li>确认通讯参数设置正确</li>
+        <li>使用功能码03读取基础寄存器测试通讯</li>
+        <li>检查设备是否正常供电</li>
+        <li>尝试重启设备后重新连接</li>
+    </ol>
+    
+    <hr>
+    
+    <h2>8. 附录</h2>
+    
+    <h3>8.1 CRC校验计算方法</h3>
+    <pre><code>def calc_crc16(data):
+    crc = 0xFFFF
+    for byte in data:
+        crc ^= byte
+        for _ in range(8):
+            if crc & 0x0001:
+                crc = (crc >> 1) ^ 0xA001
+            else:
+                crc >>= 1
+    return crc.to_bytes(2, 'little')
+
+# 示例：计算读取设备编码的CRC
+cmd = bytes([0x14, 0x03, 0x00, 0x50, 0x00, 0x0C])
+crc = calc_crc16(cmd)
+print(f"CRC: {crc.hex()}")  # 输出: 583c</code></pre>
+    
+    <h3>8.2 常用报文速查表</h3>
+    <table>
+        <tr><th>功能</th><th>请求报文 (HEX)</th><th>说明</th></tr>
+        <tr><td>读设备编码</td><td>14 03 00 50 00 0C 58 3C</td><td>读取12个寄存器</td></tr>
+        <tr><td>读维护状态</td><td>14 02 00 02 00 01 68 0B</td><td>读取离散输入2</td></tr>
+        <tr><td>读标定状态</td><td>14 02 00 01 00 01 98 0A</td><td>读取离散输入1</td></tr>
+        <tr><td>读保温箱温度</td><td>14 03 00 00 00 02 79 CB</td><td>读取寄存器0-1</td></tr>
+        <tr><td>读保温管温度</td><td>14 03 00 02 00 02 38 0B</td><td>读取寄存器2-3</td></tr>
+        <tr><td>读伴热管线温度</td><td>14 03 00 04 00 02 F9 0B</td><td>读取寄存器4-5</td></tr>
+    </table>
+    
+    <h3>8.3 技术支持</h3>
+    <ul>
+        <li>文档版本：V1.0</li>
+        <li>更新日期：2026-04-09</li>
+        <li>如有疑问，请联系技术支持</li>
+    </ul>
+    </div>
+</body>
+</html>

@@ -1,26 +1,25 @@
 PROJECT = "PLC-7k-2485-232-4i"
-VERSION = "1.1.0"
+VERSION = "1.1.1"
 sys = require("sys")
 if wdt then
 wdt.init(9000)--初始化watchdog设置为9s
 sys.timerLoopStart(wdt.feed, 3000)--3s喂一次狗
 end
-local function bandchange(band)
-local band_table = {[0]=2400, [1]=4800, [2]=9600, [3]=19200, [4]=38400, [5]=57600, [6]=115200, [7]=230400, [8]=460800, [9]=921600, [10]=2000000}
-local result = band_table[band] or 9600
-return result
+if not _G.rsptb then
+_G.rsptb = {
+    [0x01] = {},
+    [0x02] = {},
+    [0x03] = {},
+    [0x04] = {}
+}
+for i = 0, 7 do
+    rsptb[0x01][i] = 0x00
+    rsptb[0x02][i] = 0x00
 end
-if _G.rsptb == nil then
-_G.rsptb = {}
-rsptb[0x01] = {}
-rsptb[0x02] = {}
-for i = 0, 7 do rsptb[0x01][i] = 0x00 end
-for i = 0, 7 do rsptb[0x02][i] = 0x00 end
-rsptb[0x03] = {}
--- 初始化 160 个字节，对应 80 个寄存器 (0~79)
-for i = 0, 159 do rsptb[0x03][i] = 0x00 end
-rsptb[0x04] = {}
-for i = 0, 159 do rsptb[0x04][i] = 0x00 end
+for i = 0, 159 do
+    rsptb[0x03][i] = 0x00
+    rsptb[0x04][i] = 0x00
+end
 end
 fskv.init()
 log.style(1)
@@ -126,7 +125,7 @@ rsptb[0x04][pos] = packed:byte(i)
 end
 return true
 end
-_G.pt100 = 0
+
 local cs_config = require("cs_config")
 local pins = cs_config.get_pins()
 _G.p1 = pins[1]
@@ -252,6 +251,57 @@ local res = fskv.set("nmhc_limit_raw", str)
 log.info("W lim", b1, b2, b3, b4, res)
 end
 end
+-- 温度目标值持久化存储
+local function load_temp_targets()
+    local defaults = {120.0, 120.0, 120.0}
+    local targets = {}
+    for i = 1, 3 do
+        local key = string.format("temp_target_%d", i)
+        local val = fskv.get(key)
+        if not val or type(val) ~= "number" then
+            val = defaults[i]
+            fskv.set(key, val)
+        end
+        targets[i] = val
+    end
+    return targets
+end
+
+local temp_targets = load_temp_targets()
+
+-- 将温度目标值存储到Modbus寄存器
+local function store_temp_targets()
+    for i = 1, 3 do
+        local reg_start = 40 + (i-1)*2
+        local val = temp_targets[i]
+        local packed = pack_modbus_data(val, "ABCD")
+        for j = 1, #packed do
+            local pos = reg_start * 2 + j - 1
+            rsptb[0x03][pos] = packed:byte(j)
+            rsptb[0x04][pos] = packed:byte(j)
+        end
+    end
+end
+
+-- 初始化时存储温度目标值
+store_temp_targets()
+
+-- 设备编码存储与加载
+local device_code = fskv.get("device_code") or ""
+-- 存储到Modbus寄存器
+for i = 1, 24 do
+    local pos = 80 * 2 + i - 1
+    local byte = string.byte(device_code, i) or 0
+    rsptb[0x03][pos] = byte
+    rsptb[0x04][pos] = byte
+end
+
+-- 初始化密码状态
+rsptb[0x03][92 * 2] = 0
+rsptb[0x03][92 * 2 + 1] = 0
+rsptb[0x04][92 * 2] = 0
+rsptb[0x04][92 * 2 + 1] = 0
+
 _G.apply_uart_config()
 local u1 = require("u1")
 local u2 = require("u2")
@@ -372,10 +422,78 @@ if schedule_recompute then schedule_recompute() end
 sys.wait(1000)
 end
 end)
-local c1 = PT.new({control_cycle_ms=100, max_duty=90})
-local c2 = PT.new({control_cycle_ms=100, max_duty=90})
-local c3 = PT.new({control_cycle_ms=100, max_duty=90})
-local c3_sw = PT.new({control_cycle_ms=100, max_duty=90})
+local c1 = PT.new({control_cycle_ms=100, max_duty=90, Wd=temp_targets[1]})
+local c2 = PT.new({control_cycle_ms=100, max_duty=90, Wd=temp_targets[2]})
+local c3 = PT.new({control_cycle_ms=100, max_duty=90, Wd=temp_targets[3]})
+local c3_sw = PT.new({control_cycle_ms=100, max_duty=90, Wd=temp_targets[3]})
+
+-- 更新handle_modbus_write函数，添加温度目标值处理
+local original_handle_modbus_write = _G.handle_modbus_write
+_G.handle_modbus_write = function(reg, val_or_data, is_multiple)
+    original_handle_modbus_write(reg, val_or_data, is_multiple)
+    
+    -- 处理温度目标值 (寄存器 40-45)
+    if (reg <= 45 and (is_multiple and (reg + #val_or_data/2 - 1) >= 40 or not is_multiple)) then
+        for i = 1, 3 do
+            local reg_start = 40 + (i-1)*2
+            if reg <= reg_start + 1 and (is_multiple and (reg + #val_or_data/2 - 1) >= reg_start or not is_multiple) then
+                local b1 = rsptb[0x03][reg_start * 2] or 0
+                local b2 = rsptb[0x03][reg_start * 2 + 1] or 0
+                local b3 = rsptb[0x03][reg_start * 2 + 2] or 0
+                local b4 = rsptb[0x03][reg_start * 2 + 3] or 0
+                local str = string.char(b1, b2, b3, b4)
+                local _, temp = pack.unpack(str, ">f")
+                if type(temp) == "number" then
+                    -- 持久化存储
+                    local key = string.format("temp_target_%d", i)
+                    fskv.set(key, temp)
+                    -- 实时更新PID控制器
+                    if i == 1 and c1 then c1.set_target(temp) end
+                    if i == 2 and c2 then c2.set_target(temp) end
+                    if i == 3 and c3 then c3.set_target(temp) end
+                    if i == 3 and c3_sw then c3_sw.set_target(temp) end
+                    log.info("W temp_target", i, temp)
+                end
+            end
+        end
+    end
+    
+    -- 处理设备编码 (寄存器 80-91)，需要密码验证
+    if (reg <= 91 and (is_multiple and (reg + #val_or_data/2 - 1) >= 80 or not is_multiple)) then
+        -- 验证密码
+        local password = rsptb[0x03][92 * 2] * 256 + rsptb[0x03][92 * 2 + 1]
+        if password == 12345 then
+            -- 密码正确，保存设备编码
+            local code = ""
+            for i = 80, 91 do
+                local pos1 = i * 2
+                local pos2 = i * 2 + 1
+                local byte1 = rsptb[0x03][pos1] or 0
+                local byte2 = rsptb[0x03][pos2] or 0
+                code = code .. string.char(byte1, byte2)
+            end
+            -- 持久化存储
+            fskv.set("device_code", code)
+            device_code = code
+            
+            -- 重置密码状态
+            rsptb[0x03][92 * 2] = 0
+            rsptb[0x03][92 * 2 + 1] = 0
+            rsptb[0x04][92 * 2] = 0
+            rsptb[0x04][92 * 2 + 1] = 0
+            log.info("W device_code", code)
+        else
+            -- 密码错误，拒绝写入，恢复原始值
+            for i = 1, 24 do
+                local pos = 80 * 2 + i - 1
+                local byte = string.byte(device_code, i) or 0
+                rsptb[0x03][pos] = byte
+                rsptb[0x04][pos] = byte
+            end
+            log.info("W device_code failed: wrong password")
+        end
+    end
+end
 sys.taskInit(function()
 while 1 do
 local t1 = _G.pt1

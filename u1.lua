@@ -2,7 +2,6 @@ local u1 = {}
 
 function u1.init1()
 local uart_id = 1
-local uart_baud = band1
 local function modbus_resp(slaveaddr, Instructions, hexdat)
 if #hexdat % 2 ~= 0 then
 hexdat = "0" .. hexdat
@@ -15,40 +14,6 @@ local crc_high = bit.band(bit.rshift(crc_val, 8), 0xFF)
 local modbus_crc_data = string.char(crc_low, crc_high)
 local data_tx = data .. modbus_crc_data
 uart.write(uart_id, data_tx)
-end
-local function MSK_DIGI(pos)
-local msk = 0
-for i = 1, pos do
-msk = bit.lshift(msk, 1)
-msk = msk + 1
-end
-return msk
-end
-local function read_sht40(id)
-i2c.setup(id)
-sys.wait(50)
-i2c.send(id, 0x44, 0xFD) -- 发送测量指令，从时钟拉高到数据输出需最少15ms
-sys.wait(50)             -- 18ms或20ms，自行参考官方文档和数据手册
-local c = i2c.recv(1, 0x44, 6)
-_G.t11 = (c:byte(1) * 256 + c:byte(2)) * 175 / 65535 - 45
-_G.h11 = (c:byte(4) * 256 + c:byte(5)) * 100 / 65535
-t111 = string.format("%.0f", t11 * 100)
-h111 = string.format("%.0f", h11 * 100)
-local data_t_hex = pack.pack(">H", t111)
-local data_h_hex = pack.pack(">H", h111)
-for i = 1, #data_t_hex do
-rsptb[0x03][i] =
-(string.format("%02x ", data_t_hex:byte(i))):fromHex()
-rsptb[0x04][i] =
-(string.format("%02x ", data_t_hex:byte(i))):fromHex()
-rsptb[0x03][i + 2] =
-(string.format("%02x ", data_h_hex:byte(i))):fromHex()
-rsptb[0x04][i + 2] =
-(string.format("%02x ", data_h_hex:byte(i))):fromHex()
-end
-sys.wait(20)
-i2c.close(id)
-return t111, h111
 end
 uart.on(uart_id, "recv", function(id, len)
 local cacheData = uart.read(id, len)

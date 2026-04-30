@@ -25,7 +25,7 @@ end
 function temp_manager.start(spi_cfg, pins, interval_ms)
 pins = pins or cs_config.get_pins()
 interval_ms = interval_ms or 100
-_G.pt1, _G.pt2, _G.pt3 = _G.pt1, _G.pt2, _G.pt3
+
 sys.taskInit(function()
 local spi_id = (spi_cfg and spi_cfg.id) or 1
 local cpol = (spi_cfg and spi_cfg.cpol) or 1
@@ -43,17 +43,17 @@ local t1 = max31865.temperature(pins[1])
 _G.pt1 = (t1 ~= nil) and t1 or 999
 local o1 = update_avg(1, _G.pt1)
 pcall(store_to_rsptb, o1,  "ABCD", 1)
-pcall(store_to_rsptb, pt1, "ABCD", 13)
+pcall(store_to_rsptb, _G.pt1, "ABCD", 13)
 local t2 = max31865.temperature(pins[2])
 _G.pt2 = (t2 ~= nil) and t2 or 999
 local o2 = update_avg(2, _G.pt2)
 pcall(store_to_rsptb, o2,  "ABCD", 5)
-pcall(store_to_rsptb, pt2,  "ABCD", 17)
+pcall(store_to_rsptb, _G.pt2,  "ABCD", 17)
 local t3 = max31865.temperature(pins[3])
 _G.pt3 = (t3 ~= nil) and t3 or 999
 local o3 = update_avg(3, _G.pt3)
 pcall(store_to_rsptb, o3,  "ABCD", 9)
-pcall(store_to_rsptb, pt3,  "ABCD", 21)
+pcall(store_to_rsptb, _G.pt3,  "ABCD", 21)
 sys.wait(interval_ms)
 end
 end)

@@ -14,9 +14,6 @@ local MAX31865_LFTH_MSB_REG = 0x05 --
 local MAX31865_LFTL_LSB_REG = 0x06 --
 local MAX31865_FAULT_STATUS_REG = 0x07 --
 local max31865_spi_device
-local max31865_pin_ready
-local max31865_conversion_mode
-local max31865_sample_mode
 local max31865_cs_list = {}
 local function max31865_write_cmd(reg, data)
 gpio.set(cs_pin,0)
@@ -40,14 +37,7 @@ local _,raw_value = pack.unpack(data, ">H")
 gpio.set(cs_pin,1)
 return raw_value
 end
-local function max31865_wait_ready()
-while true do
-if gpio.get(max31865_pin_ready) == 0 then
-return
-end
-sys.wait(100)
-end
-end
+
 local function max31865_set_wires(wires)
 local config = max31865_read_cmd(MAX31865_CONFIG_REG)
 if wires == max31865.WIRE3 then
@@ -224,7 +214,7 @@ end
 state.last_valid = sum / #state.data_window
 return state.last_valid
 end
-local filter = create_median_filter(8)
+
 function max31865.temperature(cs)
 if cs then
 cs_pin = cs
